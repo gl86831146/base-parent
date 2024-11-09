@@ -11,8 +11,13 @@ import org.springframework.web.bind.annotation.*;
 import top.gsc.result.ResultVo;
 import top.gsc.utils.ResultUtils;
 import top.gsc.web.sys_role.entity.RoleParm;
+import top.gsc.web.sys_role.entity.SelectItem;
 import top.gsc.web.sys_role.entity.SysRole;
 import top.gsc.web.sys_role.service.SysRoleService;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/role")
@@ -65,4 +70,20 @@ public class SysRoleController {
         IPage<SysRole> list = sysRoleService.page(page, query);
         return ResultUtils.success("查询成功", list);
     }
-}
+        @GetMapping("/selectList")
+        @Operation(summary = "角色下拉数据")
+        public ResultVo<?> selectList() {
+            List<SysRole> list = sysRoleService.list();
+            List<SelectItem> selectItems = new ArrayList<>();
+
+            Optional.ofNullable(list).orElse(new ArrayList<>()).forEach(item -> {
+                SelectItem vo = new SelectItem();
+                vo.setCheck(false);
+                vo.setLabel(item.getRoleName());
+                vo.setValue(item.getRoleId());
+                selectItems.add(vo);
+            });
+
+            return ResultUtils.success("查询成功", selectItems);
+        }
+    }

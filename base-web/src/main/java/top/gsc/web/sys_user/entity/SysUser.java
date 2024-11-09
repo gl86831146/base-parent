@@ -35,4 +35,6 @@ public class SysUser {
 
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
+    @TableField(exist=false)
+    private String roleId;
 }
