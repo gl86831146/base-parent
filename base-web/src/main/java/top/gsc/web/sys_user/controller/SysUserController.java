@@ -4,18 +4,28 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.google.code.kaptcha.impl.DefaultKaptcha;
 import io.swagger.v3.oas.annotations.Operation;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import lombok.AllArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.tomcat.util.codec.binary.Base64;
 import org.springframework.web.bind.annotation.*;
 import top.gsc.result.ResultVo;
 import top.gsc.utils.ResultUtils;
+import top.gsc.web.sys_user.entity.LoginParm;
+import top.gsc.web.sys_user.entity.LoginVo;
 import top.gsc.web.sys_user.entity.SysUser;
 import top.gsc.web.sys_user.entity.SysUserPage;
 import top.gsc.web.sys_user.service.SysUserService;
 import top.gsc.web.sys_user_role.entity.SysUserRole;
 import top.gsc.web.sys_user_role.service.SysUserRoleService;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -26,6 +36,8 @@ import java.util.Optional;
 public class SysUserController {
 
     private final SysUserService sysUserService;
+    private final SysUserRoleService sysUserRoleService;
+    private final DefaultKaptcha defaultKaptcha;
 
     // 新增用户
     @PostMapping
@@ -70,7 +82,7 @@ public class SysUserController {
         IPage<SysUser> list = sysUserService.page(page, query);
         return ResultUtils.success("查询成功", list);
     }
-    private final SysUserRoleService sysUserRoleService;
+
     @GetMapping("/getRoleList")
     @Operation(summary = "根据用户id查询用户的角色")
     public ResultVo<?> getRoleList(Long userId) {
@@ -95,4 +107,69 @@ public class SysUserController {
         }
         return ResultUtils.error("密码重置失败!");
     }
+
+     //图片验证码
+     @PostMapping("/getImage")
+     @Operation(summary = "图片验证码")
+     public ResultVo<?> imageCode(HttpServletRequest request) {
+         // 获取session
+         HttpSession session = request.getSession();
+         // 生成验证码
+         String text = defaultKaptcha.createText();
+         // 存放到session
+         session.setAttribute("code", text);
+         // 生成图片,转换为base64
+         BufferedImage bufferedImage = defaultKaptcha.createImage(text);
+         ByteArrayOutputStream outputStream = null;
+         try {
+             outputStream = new ByteArrayOutputStream();
+             ImageIO.write(bufferedImage, "jpg", outputStream);
+             String base64 = Base64.encodeBase64String(outputStream.toByteArray());
+             String captchaBase64 = "data:image/jpeg;base64," + base64.replaceAll("\r\n", "");
+             return new ResultVo<>("生成成功", 200, captchaBase64);
+         } catch (IOException e) {
+             e.printStackTrace();
+         } finally {
+             try {
+                 if (outputStream != null) {
+                     outputStream.close();
+                 }
+             } catch (IOException e) {
+                 e.printStackTrace();
+             }
+         }
+         return null;
+     }
+    // 登录
+    @PostMapping("/login")
+    @Operation(summary = "登录")
+    public ResultVo<?> login(HttpServletRequest request, @RequestBody LoginParm parm) {
+        // 获取前端传递过来的code
+        String code = parm.getCode();
+        // 获取session
+        HttpSession session = request.getSession();
+        // 获取 session 里的code
+        String code1 = (String) session.getAttribute("code");
+        if (StringUtils.isEmpty(code1)) {
+            return ResultUtils.error("验证码过期!");
+        }
+        // 判断前端传递进来的code和session里面的是否相等
+        if (!code1.equals(code)) {
+            return ResultUtils.error("验证码不正确!");
+        }
+        // 查询用户信息
+        QueryWrapper<SysUser> query = new QueryWrapper<>();
+        query.lambda().eq(SysUser::getUsername, parm.getUsername())
+                .eq(SysUser::getPassword, parm.getPassword());
+        SysUser one = sysUserService.getOne(query);
+        if (one == null) {
+            return ResultUtils.error("用户名或密码不正确!");
+        }
+        // 返回用户信息和token
+        LoginVo vo = new LoginVo();
+        vo.setUserId(one.getUserId());
+        vo.setNickName(one.getNickName());
+        return ResultUtils.success("登录成功", vo);
+    }
+
 }
