@@ -44,3 +44,11 @@ knife4j:
       enable: true
       username: admin
       password: 123456
+
+jwt:
+  #颁发者
+  issuer: gsc
+  #秘钥
+  secret: top.gsc
+  #60分钟过期
+  expiration: 60
